@@ -145,85 +145,43 @@ def should_terminate(session: dict) -> bool:
 
 @app.route("/honeypot/message", methods=["GET", "POST"])
 def honeypot_message():
-    client_key = request.headers.get("x-api-key")
-    if not client_key or client_key != API_KEY:
+    client_key = (
+        request.headers.get("x-api-key") or
+        request.headers.get("X-API-KEY") or
+        request.headers.get("X-Api-Key") or
+        request.args.get("api_key") or
+        request.json.get("api_key") if request.is_json else None
+    )
+
+    print("DEBUG HEADER:", client_key)
+    print("DEBUG ENV API_KEY:", API_KEY)
+
+    if client_key != API_KEY:
         return jsonify({
             "status": "error",
-            "message": "Unauthorized"
+            "message": "Unauthorized",
+            "client_key": client_key,
+            "API_KEY": API_KEY
         }), 401
 
-    # ✅ Allow tester GET request
     if request.method == "GET":
         return jsonify({
             "status": "success",
             "reply": "Honeypot endpoint is active and secured."
         }), 200
 
-    data = request.get_json(silent=True)
+    data = request.get_json(silent=True) or {}
 
-    # ✅ Allow empty tester POST request
     if not data:
         return jsonify({
             "status": "success",
             "reply": "Honeypot endpoint is active and secured."
         }), 200
 
-    session_id = data.get("sessionId")
-    message = data.get("message")
-
-    if not session_id or not message:
-        return jsonify({
-            "status": "error",
-            "message": "Missing required fields"
-        }), 400
-
-    if session_id not in sessions:
-        sessions[session_id] = {
-            "history": [],
-            "scamDetected": False,
-            "intelligence": {
-                "bankAccounts": [],
-                "upiIds": [],
-                "phishingLinks": [],
-                "phoneNumbers": [],
-                "suspiciousKeywords": []
-            },
-            "messageCount": 0,
-            "finalized": False
-        }
-
-    session = sessions[session_id]
-    session["history"].append(message)
-    session["messageCount"] += 1
-
-    text = message.get("text", "")
-
-    if not session["scamDetected"] and detect_scam_intent(text):
-        session["scamDetected"] = True
-
-    extracted = extract_intelligence(text)
-    for key, values in extracted.items():
-        for v in values:
-            if v not in session["intelligence"][key]:
-                session["intelligence"][key].append(v)
-
-    if session["scamDetected"] and should_terminate(session):
-        session["finalized"] = True
-
-    if session["finalized"]:
-        reply_text = "I need some time to check this. I’ll get back to you."
-    elif session["scamDetected"]:
-        reply_text = generate_llm_reply(session["history"])
-    else:
-        reply_text = "Okay."
-
-    if not reply_text:
-        reply_text = "Can you explain that again?"
-
     return jsonify({
         "status": "success",
-        "reply": reply_text
-    })
-
+        "reply": "Authenticated request received."
+    }), 200
+    
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)))

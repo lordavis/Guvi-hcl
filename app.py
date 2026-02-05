@@ -143,7 +143,7 @@ def should_terminate(session: dict) -> bool:
 
     return signals >= 2
 
-@app.route("/honeypot/message", methods=["POST"])
+@app.route("/honeypot/message", methods=["GET", "POST"])
 def honeypot_message():
     client_key = request.headers.get("x-api-key")
     if not client_key or client_key != API_KEY:
@@ -152,9 +152,16 @@ def honeypot_message():
             "message": "Unauthorized"
         }), 401
 
+    # ✅ Allow tester GET request
+    if request.method == "GET":
+        return jsonify({
+            "status": "success",
+            "reply": "Honeypot endpoint is active and secured."
+        }), 200
+
     data = request.get_json(silent=True)
 
-    # ✅ Allow empty tester request
+    # ✅ Allow empty tester POST request
     if not data:
         return jsonify({
             "status": "success",

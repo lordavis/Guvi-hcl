@@ -152,11 +152,6 @@ def normalize_key(key: str) -> str:
 @app.route("/honeypot/message", methods=["GET", "POST"])
 def honeypot_message():
     # DEBUG: log as soon as route is hit
-    print("---- GUVI REQUEST HIT ----")
-    print("Method:", request.method)
-    print("Headers:", dict(request.headers))
-    print("Args:", request.args.to_dict())
-    print("Form:", request.form.to_dict())
     try:
         print("JSON:", request.get_json(silent=True))
     except Exception as e:

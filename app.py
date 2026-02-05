@@ -145,23 +145,25 @@ def should_terminate(session: dict) -> bool:
 
 @app.route("/honeypot/message", methods=["GET", "POST"])
 def honeypot_message():
+    # ✅ Accept API key from headers, JSON body, or query params
+    data = request.get_json(silent=True) or {}
     client_key = (
         request.headers.get("x-api-key") or
         request.headers.get("X-API-KEY") or
         request.headers.get("X-Api-Key") or
-        request.args.get("api_key") or
-        request.json.get("api_key") if request.is_json else None
+        data.get("api_key") or
+        request.args.get("api_key")
     )
 
-    print("DEBUG HEADER:", client_key)
-    print("DEBUG ENV API_KEY:", API_KEY)
+    # Strip extra whitespace if any
+    if client_key:
+        client_key = client_key.strip()
 
+    # 🔐 Enforce API key if provided
     if client_key != API_KEY:
         return jsonify({
             "status": "error",
-            "message": "Unauthorized",
-            "client_key": client_key,
-            "API_KEY": API_KEY
+            "message": "Unauthorized"
         }), 401
 
     if request.method == "GET":
@@ -170,18 +172,27 @@ def honeypot_message():
             "reply": "Honeypot endpoint is active and secured."
         }), 200
 
-    data = request.get_json(silent=True) or {}
+    session_id = data.get("sessionId")
+    message = data.get("message")
 
-    if not data:
+    if not session_id or not message:
         return jsonify({
-            "status": "success",
-            "reply": "Honeypot endpoint is active and secured."
-        }), 200
+            "status": "error",
+            "message": "Missing required fields"
+        }), 400
+
+    # ✅ Example: store session info if needed
+    if session_id not in sessions:
+        sessions[session_id] = {"history": [], "messageCount": 0, "intelligence": {}}
+
+    sessions[session_id]["history"].append({"sender": "user", "text": message})
+    sessions[session_id]["messageCount"] += 1
+    sessions[session_id]["intelligence"] = extract_intelligence(message)
 
     return jsonify({
         "status": "success",
         "reply": "Authenticated request received."
     }), 200
-    
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)))

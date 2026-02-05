@@ -37,7 +37,7 @@ Rules:
 Goal: Continue the conversation naturally.
 """
 
-app = Flask(__name__)
+app = Flask(_name_)
 sessions = {}
 
 URGENCY_KEYWORDS = [
@@ -143,10 +143,20 @@ def should_terminate(session: dict) -> bool:
 
     return signals >= 2
 
+def normalize_key(key: str) -> str:
+    """Normalize API key to ignore spaces, newlines, and casing"""
+    if not key:
+        return ""
+    return re.sub(r"\s+", "", key).lower()
+
 @app.route("/honeypot/message", methods=["GET", "POST"])
 def honeypot_message():
-    # ✅ Accept API key from headers, JSON body, or query params
-    data = request.get_json(silent=True) or {}
+    # Only parse JSON for POST
+    data = {}
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+
+    # Get API key from headers, JSON, or query params
     client_key = (
         request.headers.get("x-api-key") or
         request.headers.get("X-API-KEY") or
@@ -155,12 +165,21 @@ def honeypot_message():
         request.args.get("api_key")
     )
 
-    # Strip extra whitespace if any
     if client_key:
         client_key = client_key.strip()
 
-    # 🔐 Enforce API key if provided
-    if client_key != API_KEY:
+    # 🔹 DEBUG LOGS (safe for GET/POST)
+    print("GUVI request method:", request.method)
+    print("GUVI request headers:", dict(request.headers))
+    print("GUVI request args:", request.args.to_dict())
+    print("GUVI request json:", data)
+    print("Received API Key:", repr(client_key))
+
+    # Normalize keys for comparison
+    normalized_client_key = normalize_key(client_key)
+    normalized_server_key = normalize_key(API_KEY)
+
+    if normalized_client_key != normalized_server_key:
         return jsonify({
             "status": "error",
             "message": "Unauthorized"
@@ -172,6 +191,7 @@ def honeypot_message():
             "reply": "Honeypot endpoint is active and secured."
         }), 200
 
+    # For POST requests
     session_id = data.get("sessionId")
     message = data.get("message")
 
@@ -181,7 +201,7 @@ def honeypot_message():
             "message": "Missing required fields"
         }), 400
 
-    # ✅ Example: store session info if needed
+    # Store session info
     if session_id not in sessions:
         sessions[session_id] = {"history": [], "messageCount": 0, "intelligence": {}}
 
@@ -194,5 +214,5 @@ def honeypot_message():
         "reply": "Authenticated request received."
     }), 200
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)))

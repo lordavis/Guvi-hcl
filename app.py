@@ -37,7 +37,7 @@ Rules:
 Goal: Continue the conversation naturally.
 """
 
-app = Flask(__name__)
+app = Flask(_name_)
 sessions = {}
 
 URGENCY_KEYWORDS = [
@@ -151,17 +151,10 @@ def normalize_key(key: str) -> str:
 
 @app.route("/honeypot/message", methods=["GET", "POST"])
 def honeypot_message():
-    # DEBUG: log as soon as route is hit
-    try:
-        print("JSON:", request.get_json(silent=True))
-    except Exception as e:
-        print("JSON parse error:", e)
-
-    # 🔹 DEBUG: print everything right away
-    print("Headers:", dict(request.headers))
-    print("Args:", request.args.to_dict())
-    print("Form:", request.form.to_dict())
-    print("JSON:", data)
+    # Only parse JSON for POST
+    data = {}
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
 
     # Get API key from headers, JSON, query params, or form data
     client_key = (
@@ -175,29 +168,48 @@ def honeypot_message():
         request.form.get("api_key")
     )
 
-    # 🔹 DEBUG: show received API key
-    print("Received API Key:", repr(client_key))
-
     if client_key:
         client_key = client_key.strip()
-        # Normalize and enforce only if provided
-        normalized_client_key = re.sub(r"\s+", "", client_key).lower()
-        normalized_server_key = re.sub(r"\s+", "", API_KEY).lower()
-        if normalized_client_key != normalized_server_key:
-            return jsonify({"status": "error", "message": "Unauthorized"}), 401
+
+    # 🔹 DEBUG LOGS (safe for GET/POST)
+    print("GUVI request method:", request.method)
+    print("GUVI request headers:", dict(request.headers))
+    print("GUVI request args:", request.args.to_dict())
+    print("GUVI request form:", request.form.to_dict())
+    print("GUVI request json:", data)
+    print("Received API Key:", repr(client_key))
+
+    # ✅ Allow GUVI test with no API key
+    if not client_key:
+        print("GUVI test detected — bypassing API key check")
     else:
-        # No key → GUVI test, allow
-        print("GUVI test detected, bypassing API key check")
+        # Normalize keys for comparison
+        normalized_client_key = normalize_key(client_key)
+        normalized_server_key = normalize_key(API_KEY)
+
+        if normalized_client_key != normalized_server_key:
+            return jsonify({
+                "status": "error",
+                "message": "Unauthorized"
+            }), 401
 
     if request.method == "GET":
-        return jsonify({"status": "success", "reply": "Honeypot endpoint is active and secured."}), 200
+        return jsonify({
+            "status": "success",
+            "reply": "Honeypot endpoint is active and secured."
+        }), 200
 
-    # POST request handling
+    # For POST requests
     session_id = data.get("sessionId")
     message = data.get("message")
-    if not session_id or not message:
-        return jsonify({"status": "error", "message": "Missing required fields"}), 400
 
+    if not session_id or not message:
+        return jsonify({
+            "status": "error",
+            "message": "Missing required fields"
+        }), 400
+
+    # Store session info
     if session_id not in sessions:
         sessions[session_id] = {"history": [], "messageCount": 0, "intelligence": {}}
 
@@ -205,7 +217,10 @@ def honeypot_message():
     sessions[session_id]["messageCount"] += 1
     sessions[session_id]["intelligence"] = extract_intelligence(message)
 
-    return jsonify({"status": "success", "reply": "Authenticated request received."}), 200
+    return jsonify({
+        "status": "success",
+        "reply": "Authenticated request received."
+    }), 200
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)))

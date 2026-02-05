@@ -153,11 +153,13 @@ def honeypot_message():
         }), 401
 
     data = request.get_json(silent=True)
+
+    # ✅ Allow empty tester request
     if not data:
         return jsonify({
-            "status": "error",
-            "message": "Invalid JSON"
-        }), 400
+            "status": "success",
+            "reply": "Honeypot endpoint is active and secured."
+        }), 200
 
     session_id = data.get("sessionId")
     message = data.get("message")

@@ -37,7 +37,7 @@ Rules:
 Goal: Continue the conversation naturally.
 """
 
-app = Flask(_name_)
+app = Flask(__name__)
 sessions = {}
 
 URGENCY_KEYWORDS = [
@@ -222,5 +222,5 @@ def honeypot_message():
         "reply": "Authenticated request received."
     }), 200
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)))

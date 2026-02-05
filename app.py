@@ -156,6 +156,12 @@ def honeypot_message():
     if request.method == "POST":
         data = request.get_json(silent=True) or {}
 
+    # 🔹 DEBUG: print everything GUVI sends
+    print("Headers:", dict(request.headers))
+    print("Args:", request.args.to_dict())
+    print("Form:", request.form.to_dict())
+    print("JSON:", data)
+
     # Get API key from headers, JSON, query params, or form data
     client_key = (
         request.headers.get("x-api-key") or
@@ -170,46 +176,24 @@ def honeypot_message():
 
     if client_key:
         client_key = client_key.strip()
-
-    # 🔹 DEBUG LOGS (safe for GET/POST)
-    print("GUVI request method:", request.method)
-    print("GUVI request headers:", dict(request.headers))
-    print("GUVI request args:", request.args.to_dict())
-    print("GUVI request form:", request.form.to_dict())
-    print("GUVI request json:", data)
-    print("Received API Key:", repr(client_key))
-
-    # ✅ Allow GUVI test with no API key
-    if not client_key:
-        print("GUVI test detected — bypassing API key check")
-    else:
-        # Normalize keys for comparison
+        # Normalize and enforce if key is provided
         normalized_client_key = normalize_key(client_key)
         normalized_server_key = normalize_key(API_KEY)
-
         if normalized_client_key != normalized_server_key:
-            return jsonify({
-                "status": "error",
-                "message": "Unauthorized"
-            }), 401
+            return jsonify({"status": "error", "message": "Unauthorized"}), 401
+    else:
+        # No key provided → assume GUVI test
+        print("GUVI test detected, bypassing API key check")
 
     if request.method == "GET":
-        return jsonify({
-            "status": "success",
-            "reply": "Honeypot endpoint is active and secured."
-        }), 200
+        return jsonify({"status": "success", "reply": "Honeypot endpoint is active and secured."}), 200
 
     # For POST requests
     session_id = data.get("sessionId")
     message = data.get("message")
-
     if not session_id or not message:
-        return jsonify({
-            "status": "error",
-            "message": "Missing required fields"
-        }), 400
+        return jsonify({"status": "error", "message": "Missing required fields"}), 400
 
-    # Store session info
     if session_id not in sessions:
         sessions[session_id] = {"history": [], "messageCount": 0, "intelligence": {}}
 
@@ -217,10 +201,7 @@ def honeypot_message():
     sessions[session_id]["messageCount"] += 1
     sessions[session_id]["intelligence"] = extract_intelligence(message)
 
-    return jsonify({
-        "status": "success",
-        "reply": "Authenticated request received."
-    }), 200
+    return jsonify({"status": "success", "reply": "Authenticated request received."}), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5001)))
